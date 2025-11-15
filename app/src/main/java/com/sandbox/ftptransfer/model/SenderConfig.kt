@@ -1,5 +1,10 @@
 package com.sandbox.ftptransfer.model
 
+data class SenderConfig(
+    val monitorFolder: String,
+    val targetPort: Int
+)
+
 data class FolderMonitorConfig(
     val folderPath: String,
     val folderName: String,
@@ -33,7 +38,7 @@ data class SenderSettings(
                 ),
                 FolderMonitorConfig(
                     folderPath = "/Downloads/",
-                    folderName = "Downloads", 
+                    folderName = "Downloads",
                     targetPort = 5153,
                     fileAction = FileAction.COPY
                 ),
@@ -46,11 +51,11 @@ data class SenderSettings(
             )
         }
     }
-    
+
     fun getConfigForFolder(folderPath: String): FolderMonitorConfig? {
         return monitoredFolders.find { it.folderPath == folderPath }
     }
-    
+
     fun getConfigForPort(port: Int): FolderMonitorConfig? {
         return monitoredFolders.find { it.targetPort == port }
     }
