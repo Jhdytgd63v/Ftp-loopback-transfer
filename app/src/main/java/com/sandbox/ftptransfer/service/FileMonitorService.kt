@@ -174,7 +174,7 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                    // Handle file action (MOVE or COPY)
+                    // FIX: if statement sebagai statement, bukan expression
                     if (config.fileAction == FileAction.MOVE) {
                         file.delete()
                         Log.d(TAG, "Source file deleted after move: ${file.name}")
