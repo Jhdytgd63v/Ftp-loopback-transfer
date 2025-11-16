@@ -1,5 +1,7 @@
 package com.sandbox.ftptransfer.model
 
+import java.io.File
+
 data class SenderConfig(
     val monitorFolder: String,
     val targetPort: Int
@@ -11,11 +13,17 @@ data class FolderMonitorConfig(
     val targetPort: Int,
     val fileAction: FileAction = FileAction.COPY,
     val enabled: Boolean = true,
-    val monitoringSettings: MonitoringSettings = MonitoringSettings.default() // INTEGRASI DELAY
+    val monitoringSettings: MonitoringSettings = MonitoringSettings.default(),
+    val autoDetectSettings: AutoDetectSettings = AutoDetectSettings() // AUTO DETECT INTEGRATION
 ) {
     fun getDisplayName(): String {
         val delayText = if (monitoringSettings.delaySeconds == 0) "real-time" else "${monitoringSettings.delaySeconds}s"
-        return "$folderName → Port $targetPort ($fileAction) - Scan: $delayText"
+        val autoDetectText = if (autoDetectSettings.enabled) "Auto" else "All"
+        return "$folderName → Port $targetPort ($fileAction) - Scan: $delayText - Filter: $autoDetectText"
+    }
+    
+    fun shouldTransferFile(file: File): Boolean {
+        return autoDetectSettings.shouldTransfer(file)
     }
 }
 
@@ -37,21 +45,24 @@ data class SenderSettings(
                     folderName = "Screenshots",
                     targetPort = 5152,
                     fileAction = FileAction.MOVE,
-                    monitoringSettings = MonitoringSettings(delaySeconds = 2)
+                    monitoringSettings = MonitoringSettings(delaySeconds = 2),
+                    autoDetectSettings = AutoDetectSettings.mediaOnly()
                 ),
                 FolderMonitorConfig(
                     folderPath = "/Downloads/",
                     folderName = "Downloads",
                     targetPort = 5153,
                     fileAction = FileAction.COPY,
-                    monitoringSettings = MonitoringSettings(delaySeconds = 5)
+                    monitoringSettings = MonitoringSettings(delaySeconds = 5),
+                    autoDetectSettings = AutoDetectSettings() // Default: images, videos, pdf, txt
                 ),
                 FolderMonitorConfig(
                     folderPath = "/DCIM/Camera/",
                     folderName = "Camera",
                     targetPort = 5154,
                     fileAction = FileAction.MOVE,
-                    monitoringSettings = MonitoringSettings(delaySeconds = 3)
+                    monitoringSettings = MonitoringSettings(delaySeconds = 3),
+                    autoDetectSettings = AutoDetectSettings.mediaOnly()
                 )
             )
         }

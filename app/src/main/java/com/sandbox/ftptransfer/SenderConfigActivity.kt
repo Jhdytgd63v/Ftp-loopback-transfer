@@ -9,12 +9,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.sandbox.ftptransfer.model.FolderMonitorConfig
 import com.sandbox.ftptransfer.model.FileAction
 import com.sandbox.ftptransfer.model.MonitoringSettings
 import com.sandbox.ftptransfer.model.SenderSettings
+import com.sandbox.ftptransfer.model.AutoDetectSettings
+import com.sandbox.ftptransfer.ui.AutoDetectDialog
 import com.google.gson.Gson
 import java.io.File
 
@@ -34,9 +37,8 @@ class SenderConfigActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_receiver_config) // USE RECEIVER LAYOUT
+        setContentView(R.layout.activity_receiver_config)
         
-        // Update title
         title = "Sender Configuration - Folder to Port Mapping"
         
         initViews()
@@ -50,7 +52,6 @@ class SenderConfigActivity : AppCompatActivity() {
         btnSave = findViewById(R.id.btnSave)
         btnBack = findViewById(R.id.btnBack)
         
-        // Update button text untuk sender
         btnAddMapping.text = "Add New Folder Monitoring"
         
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -76,10 +77,28 @@ class SenderConfigActivity : AppCompatActivity() {
             configs[index] = configs[index].copy(fileAction = newAction)
         }
         
+        adapter.onAutoDetectClickListener = { index ->
+            selectedConfigIndex = index
+            showAutoDetectDialog(configs[index].autoDetectSettings)
+        }
+        
         adapter.onConfigDeleteListener = { index ->
             configs.removeAt(index)
             adapter.submitList(configs.toList())
         }
+    }
+    
+    private fun showAutoDetectDialog(currentSettings: AutoDetectSettings) {
+        val dialog = AutoDetectDialog(this, currentSettings) { newSettings ->
+            if (selectedConfigIndex != -1) {
+                configs[selectedConfigIndex] = configs[selectedConfigIndex].copy(
+                    autoDetectSettings = newSettings
+                )
+                adapter.submitList(configs.toList())
+                Toast.makeText(this, "Auto Detect settings saved", Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
     }
     
     private fun loadSettings() {
@@ -92,7 +111,6 @@ class SenderConfigActivity : AppCompatActivity() {
                 configs.clear()
                 configs.addAll(settings.monitoredFolders)
             } else {
-                // Default configs
                 configs.clear()
                 configs.addAll(SenderSettings.defaultFolders())
             }
@@ -110,7 +128,8 @@ class SenderConfigActivity : AppCompatActivity() {
                 folderName = "NewFolder",
                 targetPort = newPort,
                 fileAction = FileAction.COPY,
-                monitoringSettings = MonitoringSettings(delaySeconds = 2)
+                monitoringSettings = MonitoringSettings(delaySeconds = 2),
+                autoDetectSettings = AutoDetectSettings()
             )
             configs.add(newConfig)
             adapter.submitList(configs.toList())
@@ -149,7 +168,6 @@ class SenderConfigActivity : AppCompatActivity() {
         if (selectedConfigIndex == -1) return
         
         try {
-            // Take persistable permission
             contentResolver.takePersistableUriPermission(
                 uri, 
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -201,6 +219,7 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
     var onPortChangeListener: ((Int, Int) -> Unit)? = null
     var onDelayChangeListener: ((Int, Int) -> Unit)? = null
     var onActionChangeListener: ((Int, FileAction) -> Unit)? = null
+    var onAutoDetectClickListener: ((Int) -> Unit)? = null
     var onConfigDeleteListener: ((Int) -> Unit)? = null
     
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -209,6 +228,7 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         val etPort: EditText = itemView.findViewById(R.id.etPort)
         val etDelay: EditText = itemView.findViewById(R.id.etDelay)
         val spinnerAction: Spinner = itemView.findViewById(R.id.spinnerAction)
+        val btnAutoDetect: Button = itemView.findViewById(R.id.btnAutoDetect)
         val switchEnabled: Switch = itemView.findViewById(R.id.switchEnabled)
         val btnDelete: Button = itemView.findViewById(R.id.btnDelete)
     }
@@ -227,6 +247,10 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         holder.etDelay.setText(config.monitoringSettings.delaySeconds.toString())
         holder.switchEnabled.isChecked = config.enabled
         
+        // Update Auto Detect button text
+        holder.btnAutoDetect.text = if (config.autoDetectSettings.enabled) 
+            "Auto Detect: ON" else "Auto Detect: OFF"
+        
         // Setup file action spinner
         val actions = FileAction.values().map { it.name }
         val adapter = ArrayAdapter(holder.itemView.context, android.R.layout.simple_spinner_item, actions)
@@ -236,6 +260,10 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         
         holder.btnSelectFolder.setOnClickListener {
             onFolderSelectListener?.invoke(position)
+        }
+        
+        holder.btnAutoDetect.setOnClickListener {
+            onAutoDetectClickListener?.invoke(position)
         }
         
         holder.etPort.setOnFocusChangeListener { _, hasFocus ->
@@ -261,7 +289,6 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         }
         
         holder.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
-            // Enable/disable config
             onActionChangeListener?.invoke(position, if (isChecked) config.fileAction else FileAction.COPY)
         }
         

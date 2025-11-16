@@ -12,6 +12,7 @@ import kotlinx.coroutines.*
 import java.io.*
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class FileMonitorService : Service() {
 
@@ -84,18 +85,34 @@ class FileMonitorService : Service() {
 
         val files = directory.listFiles() ?: return
 
+        var transferredCount = 0
+        var filteredCount = 0
+
         for (file in files) {
             if (file.isFile && !processedFiles.contains(file.absolutePath)) {
-                // Wait for file to be completely written (configurable delay)
-                delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
+                
+                // AUTO DETECT FILTERING - CORE FEATURE
+                if (config.shouldTransferFile(file)) {
+                    // Wait for file to be completely written
+                    delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
 
-                if (isFileReady(file)) {
-                    processedFiles.add(file.absolutePath)
-                    scope.launch {
-                        sendFileToReceiver(file, config)
+                    if (isFileReady(file)) {
+                        processedFiles.add(file.absolutePath)
+                        scope.launch {
+                            sendFileToReceiver(file, config)
+                        }
+                        transferredCount++
                     }
+                } else {
+                    filteredCount++
+                    Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
                 }
             }
+        }
+
+        // Log auto detect statistics
+        if (transferredCount > 0 || filteredCount > 0) {
+            Log.i(TAG, "AutoDetect [${config.folderName}]: Transferred: $transferredCount, Filtered: $filteredCount")
         }
 
         // Clean up processed files set to prevent memory leak

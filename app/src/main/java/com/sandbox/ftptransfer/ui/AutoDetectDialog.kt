@@ -1,0 +1,145 @@
+package com.sandbox.ftptransfer.ui
+
+import android.app.Dialog
+import android.content.Context
+import android.os.Bundle
+import android.widget.*
+import com.sandbox.ftptransfer.model.AutoDetectSettings
+
+class AutoDetectDialog(
+    private val context: Context,
+    private val currentSettings: AutoDetectSettings = AutoDetectSettings(),
+    private val onSettingsSaved: (AutoDetectSettings) -> Unit
+) : Dialog(context) {
+
+    private lateinit var switchAutoDetect: Switch
+    private lateinit var cbImages: CheckBox
+    private lateinit var cbVideos: CheckBox
+    private lateinit var cbDocuments: CheckBox
+    private lateinit var cbText: CheckBox
+    private lateinit var etMaxSize: EditText
+    private lateinit var cbIgnoreHidden: CheckBox
+    private lateinit var btnSave: Button
+    private lateinit var btnCancel: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.dialog_auto_detect)
+        
+        setupViews()
+        populateCurrentSettings()
+        setupClickListeners()
+        setupToggleLogic()
+    }
+
+    private fun setupViews() {
+        switchAutoDetect = findViewById(R.id.switchAutoDetect)
+        cbImages = findViewById(R.id.cbImages)
+        cbVideos = findViewById(R.id.cbVideos)
+        cbDocuments = findViewById(R.id.cbDocuments)
+        cbText = findViewById(R.id.cbText)
+        etMaxSize = findViewById(R.id.etMaxSize)
+        cbIgnoreHidden = findViewById(R.id.cbIgnoreHidden)
+        btnSave = findViewById(R.id.btnSave)
+        btnCancel = findViewById(R.id.btnCancel)
+    }
+
+    private fun populateCurrentSettings() {
+        switchAutoDetect.isChecked = currentSettings.enabled
+        cbImages.isChecked = currentSettings.allowedExtensions.any { it in setOf("jpg", "jpeg", "png", "gif") }
+        cbVideos.isChecked = currentSettings.allowedExtensions.any { it in setOf("mp4", "mov", "avi") }
+        cbDocuments.isChecked = currentSettings.allowedExtensions.any { it in setOf("pdf", "doc", "docx", "xls", "xlsx") }
+        cbText.isChecked = currentSettings.allowedExtensions.contains("txt")
+        etMaxSize.setText((currentSettings.maxFileSize / (1024 * 1024)).toString())
+        cbIgnoreHidden.isChecked = currentSettings.ignoreHiddenFiles
+        
+        updateUiEnabledState()
+    }
+
+    private fun setupToggleLogic() {
+        switchAutoDetect.setOnCheckedChangeListener { _, isChecked ->
+            updateUiEnabledState()
+        }
+    }
+
+    private fun updateUiEnabledState() {
+        val isEnabled = switchAutoDetect.isChecked
+        cbImages.isEnabled = isEnabled
+        cbVideos.isEnabled = isEnabled
+        cbDocuments.isEnabled = isEnabled
+        cbText.isEnabled = isEnabled
+        etMaxSize.isEnabled = isEnabled
+        cbIgnoreHidden.isEnabled = isEnabled
+    }
+
+    private fun setupClickListeners() {
+        btnSave.setOnClickListener {
+            if (validateInputs()) {
+                saveSettings()
+                dismiss()
+            }
+        }
+        
+        btnCancel.setOnClickListener {
+            dismiss()
+        }
+    }
+
+    private fun validateInputs(): Boolean {
+        if (!switchAutoDetect.isChecked) {
+            return true // Auto detect disabled, semua file akan ditransfer
+        }
+
+        val maxSizeText = etMaxSize.text.toString()
+        if (maxSizeText.isNotEmpty()) {
+            val maxSize = maxSizeText.toLongOrNull()
+            if (maxSize == null || maxSize <= 0) {
+                etMaxSize.error = "Please enter valid file size"
+                return false
+            }
+        }
+
+        // Check if at least one file type is selected
+        if (!cbImages.isChecked && !cbVideos.isChecked && !cbDocuments.isChecked && !cbText.isChecked) {
+            Toast.makeText(context, "Please select at least one file type", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        return true
+    }
+
+    private fun saveSettings() {
+        if (!switchAutoDetect.isChecked) {
+            // Auto detect disabled - transfer semua files
+            onSettingsSaved(AutoDetectSettings(enabled = false))
+            return
+        }
+
+        val allowedExtensions = mutableSetOf<String>()
+
+        if (cbImages.isChecked) {
+            allowedExtensions.addAll(setOf("jpg", "jpeg", "png", "gif"))
+        }
+        if (cbVideos.isChecked) {
+            allowedExtensions.addAll(setOf("mp4", "mov", "avi"))
+        }
+        if (cbDocuments.isChecked) {
+            allowedExtensions.addAll(setOf("pdf", "doc", "docx", "xls", "xlsx"))
+        }
+        if (cbText.isChecked) {
+            allowedExtensions.add("txt")
+        }
+
+        val maxSizeMB = etMaxSize.text.toString().toLongOrNull() ?: 100
+        val maxFileSize = maxSizeMB * 1024 * 1024
+
+        val newSettings = AutoDetectSettings(
+            enabled = true,
+            allowedExtensions = allowedExtensions,
+            maxFileSize = maxFileSize,
+            ignoreHiddenFiles = cbIgnoreHidden.isChecked
+        )
+
+        onSettingsSaved(newSettings)
+    }
+}
