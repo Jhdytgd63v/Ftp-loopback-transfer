@@ -160,12 +160,13 @@ class FileMonitorService : Service() {
                 val buffer = ByteArray(8192)
                 var read: Int
 
-                while (fileInputStream.read(buffer).also { read = it } != -1) {
-                    outputStream.write(buffer, 0, read)
+                fileInputStream.use { fis ->
+                    while (fis.read(buffer).also { read = it } != -1) {
+                        outputStream.write(buffer, 0, read)
+                    }
                 }
 
                 outputStream.flush()
-                fileInputStream.close()
 
                 // Wait for response
                 val success = inputStream.readBoolean()
@@ -174,10 +175,14 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                    // FIX: if statement sebagai statement, bukan expression
-                    if (config.fileAction == FileAction.MOVE) {
-                        file.delete()
-                        Log.d(TAG, "Source file deleted after move: ${file.name}")
+                    when (config.fileAction) {
+                        FileAction.MOVE -> {
+                            if (file.exists()) {
+                                val deleted = file.delete()
+                                Log.d(TAG, "Source file deleted after move: ${file.name}, deleted=$deleted")
+                            }
+                        }
+                        else -> { /* no-op */ }
                     }
 
                 } else {
