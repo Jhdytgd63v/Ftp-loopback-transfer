@@ -174,10 +174,20 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                    // FIX: if statement sebagai statement, bukan expression
+                    // Ensure if is used as statement and handle file deletion safely
                     if (config.fileAction == FileAction.MOVE) {
-                        file.delete()
-                        Log.d(TAG, "Source file deleted after move: ${file.name}")
+                        try {
+                            val deleted = file.delete()
+                            if (deleted) {
+                                Log.d(TAG, "Source file deleted after move: ${file.name}")
+                            } else {
+                                Log.w(TAG, "Gagal menghapus file sumber: ${file.name}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error menghapus file ${file.name}: ${e.message}")
+                        }
+                    } else {
+                        // no-op for other actions
                     }
 
                 } else {
