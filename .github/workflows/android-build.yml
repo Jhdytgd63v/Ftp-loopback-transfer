@@ -1,4 +1,4 @@
-name: Android CI
+name: Android Build
 
 on:
   push:
@@ -23,15 +23,13 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Make gradlew executable
-      run: chmod +x ./gradlew
-      
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
-      
-    - name: Upload APK Artifact
+    - name: Build APK
+      run: |
+        ./gradlew assembleDebug
+        echo "APK built successfully"
+        
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ftp-loopback-app
         path: app/build/outputs/apk/debug/*.apk
-        retention-days: 7
