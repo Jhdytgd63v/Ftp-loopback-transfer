@@ -175,15 +175,10 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                    when (config.fileAction) {
-                        FileAction.MOVE -> {
-                            if (file.exists()) {
-                                file.delete()
-                                Log.d(TAG, "Source file deleted after move: ${file.name}")
-                            }
-                        }
-                        else -> { /* no-op */ }
-                    }
+                      if (config.fileAction == FileAction.MOVE && file.exists()) {
+                          file.delete()
+                          Log.d(TAG, "Source file deleted after move: ${file.name}")
+                      }
 
                 } else {
                     Log.e(TAG, "File transfer failed: ${file.name} - $message")
