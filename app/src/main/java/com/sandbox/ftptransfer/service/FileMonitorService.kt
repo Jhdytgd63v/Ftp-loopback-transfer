@@ -288,8 +288,8 @@ class FileMonitorService : Service() {
         scope.cancel()
         Log.d(TAG, "FileMonitorService destroyed")
     }
-}
     private suspend fun isDocumentReady(document: androidx.documentfile.provider.DocumentFile): Boolean {
+}
         return try {
             // For DocumentFile, check if file exists and has content
             delay(1000) // Wait 1 second for file stability
