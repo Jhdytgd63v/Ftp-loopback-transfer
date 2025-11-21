@@ -175,10 +175,19 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                      if (config.fileAction == FileAction.MOVE && file.exists()) {
-                          file.delete()
-                          Log.d(TAG, "Source file deleted after move: ${file.name}")
-                      }
+                    when {
+                        config.fileAction == FileAction.MOVE && file.exists() -> {
+                            val deleted = file.delete()
+                            if (deleted) {
+                                Log.d(TAG, "Source file deleted after move: ${file.name}")
+                            } else {
+                                Log.e(TAG, "Failed to delete source file after move: ${file.name}")
+                            }
+                        }
+                        else -> {
+                            // No action needed for COPY mode
+                        }
+                    }
 
                 } else {
                     Log.e(TAG, "File transfer failed: ${file.name} - $message")
