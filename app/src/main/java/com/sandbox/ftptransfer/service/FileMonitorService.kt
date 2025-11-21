@@ -1,4 +1,5 @@
 package com.sandbox.ftptransfer.service
+import androidx.documentfile.provider.DocumentFile
 import com.sandbox.ftptransfer.utils.AppNotificationManager
 
 import android.app.Service
@@ -288,3 +289,73 @@ class FileMonitorService : Service() {
         Log.d(TAG, "FileMonitorService destroyed")
     }
 }
+    private suspend fun isDocumentReady(document: androidx.documentfile.provider.DocumentFile): Boolean {
+        return try {
+            // For DocumentFile, check if file exists and has content
+            delay(1000) // Wait 1 second for file stability
+            document.exists() && document.length() > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
+        Log.d(TAG, "Attempting to send document: ${document.name} to port: ${config.targetPort}")
+
+        AppNotificationManager.notifyStatus(this, document.name.hashCode(), "📤 Sending File", "Sending ${document.name} to port ${config.targetPort}")
+        
+        val socket = PortManager.connectToServer(config.targetPort)
+        
+        if (socket == null) {
+            Log.e(TAG, "Failed to connect to server on port ${config.targetPort}")
+            processedFiles.remove(document.uri.toString())
+            return
+        }
+        
+        try {
+            socket.use { sock ->
+                val outputStream = DataOutputStream(sock.getOutputStream())
+                val inputStream = DataInputStream(sock.getInputStream())
+                
+                // Send file metadata
+                outputStream.writeUTF(document.name ?: "unknown_file")
+                outputStream.writeLong(document.length())
+                outputStream.writeUTF(config.fileAction.toString())
+                
+                // Send file data from DocumentFile
+                val docInputStream = contentResolver.openInputStream(document.uri)
+                if (docInputStream != null) {
+                    docInputStream.use { stream ->
+                        val buffer = ByteArray(8192)
+                        var read: Int
+                        while (stream.read(buffer).also { read = it } != -1) {
+                            outputStream.write(buffer, 0, read)
+                        }
+                    }
+                }
+                
+                outputStream.flush()
+                
+                // Wait for response
+                val success = inputStream.readBoolean()
+                val message = inputStream.readUTF()
+                AppNotificationManager.notifyStatus(this, document.name.hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
+                
+                if (success) {
+                    Log.d(TAG, "Document sent successfully: ${document.name} - $message")
+                    
+                    if (config.fileAction == FileAction.MOVE) {
+                        val deleted = document.delete()
+                        Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
+                    }
+                    
+                } else {
+                    Log.e(TAG, "Document transfer failed: ${document.name} - $message")
+                    processedFiles.remove(document.uri.toString()) // Retry later
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
+            processedFiles.remove(document.uri.toString())
+        }
+    }
