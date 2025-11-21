@@ -178,8 +178,8 @@ class FileMonitorService : Service() {
                     when (config.fileAction) {
                         FileAction.MOVE -> {
                             if (file.exists()) {
-                                val deleted = file.delete()
-                                Log.d(TAG, "Source file deleted after move: ${file.name}, deleted=$deleted")
+                                file.delete()
+                                Log.d(TAG, "Source file deleted after move: ${file.name}")
                             }
                         }
                         else -> { /* no-op */ }
