@@ -26,6 +26,19 @@ class LoopbackServer : Service() {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Start foreground service untuk Android 8+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel("ftp_server_channel", "File Receiver", android.app.NotificationManager.IMPORTANCE_LOW)
+            val manager = getSystemService(android.app.NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+            
+            val notification = android.app.Notification.Builder(this, "ftp_server_channel")
+                .setContentTitle("FTP File Receiver")
+                .setContentText("Listening for incoming files")
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .build()
+            startForeground(1, notification)
+        }
         if (!isRunning.getAndSet(true)) {
             startServer()
         }
