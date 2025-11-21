@@ -1,4 +1,5 @@
 package com.sandbox.ftptransfer.service
+import com.sandbox.ftptransfer.utils.AppNotificationManager
 
 import android.app.Service
 import android.content.Intent
@@ -130,6 +131,7 @@ class LoopbackServer : Service() {
             dataOutputStream.writeUTF("File received successfully: ${outputFile.absolutePath}")
             dataOutputStream.flush()
             
+            AppNotificationManager.notifyStatus(this, fileName.hashCode(), "📥 File Received", "New file: $fileName in channel_$channel")
             Log.d(TAG, "File received successfully: ${outputFile.absolutePath}")
             
         } catch (e: Exception) {

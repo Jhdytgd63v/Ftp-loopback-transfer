@@ -1,4 +1,5 @@
 package com.sandbox.ftptransfer.service
+import com.sandbox.ftptransfer.utils.AppNotificationManager
 
 import android.app.Service
 import android.content.Intent
@@ -98,6 +99,7 @@ class FileMonitorService : Service() {
                     delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
 
                     if (isFileReady(file)) {
+                            AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), "📁 File Detected", "New file: ${file.name}")
                         processedFiles.add(file.absolutePath)
                         scope.launch {
                             sendFileToReceiver(file, config)
@@ -136,6 +138,7 @@ class FileMonitorService : Service() {
     private suspend fun sendFileToReceiver(file: File, config: FolderMonitorConfig) {
         Log.d(TAG, "Attempting to send file: ${file.name} to port: ${config.targetPort}")
 
+        AppNotificationManager.notifyStatus(this, file.name.hashCode(), "📤 Sending File", "Sending ${file.name} to port ${config.targetPort}")
         // FIX: Gunakan connectToServer bukan connectToPort
         val socket = PortManager.connectToServer(config.targetPort)
 
@@ -171,6 +174,7 @@ class FileMonitorService : Service() {
                 // Wait for response
                 val success = inputStream.readBoolean()
                 val message = inputStream.readUTF()
+                        AppNotificationManager.notifyStatus(this, file.name.hashCode(), "✅ Transfer Complete", "File sent: ${file.name}")
 
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
