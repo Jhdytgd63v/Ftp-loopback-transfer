@@ -145,6 +145,7 @@ class ReceiverConfigActivity : AppCompatActivity() {
     }
     
     private fun saveSettings() {
+        val timestamp = System.currentTimeMillis()
         try {
             val portMappings = configs.associate { it.port to it.folderName }
             val settings = ReceiverSettings(portMappings = portMappings)
@@ -159,7 +160,11 @@ class ReceiverConfigActivity : AppCompatActivity() {
                 configFile.writeText(configJson)
             }
             
-            Toast.makeText(this, "Receiver settings saved!", Toast.LENGTH_SHORT).show()
+            // Restart receiver service to apply new port-folder mappings immediately
+            val intent = Intent(this, com.sandbox.ftptransfer.service.LoopbackServer::class.java)
+            startService(intent)
+            
+            Toast.makeText(this, "Receiver settings saved (${configs.size} ports). Service restarted @ $timestamp", Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             Toast.makeText(this, "Error saving settings", Toast.LENGTH_SHORT).show()
