@@ -102,10 +102,10 @@ class FileMonitorService : Service() {
                         scope.launch {
                             sendFileToReceiver(file, config)
                         }
-                        transferredCount++
+                        transferredCount++;
                     }
                 } else {
-                    filteredCount++
+                    filteredCount++;
                     Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
                 }
             }
@@ -141,7 +141,7 @@ class FileMonitorService : Service() {
 
         if (socket == null) {
             Log.e(TAG, "Failed to connect to server on port ${config.targetPort}")
-            processedFiles.remove(file.absolutePath)
+            processedFiles.remove(file.absolutePath);
             return
         }
 
@@ -162,11 +162,11 @@ class FileMonitorService : Service() {
 
                 fileInputStream.use { fis ->
                     while (fis.read(buffer).also { read = it } != -1) {
-                        outputStream.write(buffer, 0, read)
+                        outputStream.write(buffer, 0, read);
                     }
                 }
 
-                outputStream.flush()
+                outputStream.flush();
 
                 // Wait for response
                 val success = inputStream.readBoolean()
@@ -175,19 +175,29 @@ class FileMonitorService : Service() {
                 if (success) {
                     Log.d(TAG, "File sent successfully: ${file.name} - $message")
 
-                      if (config.fileAction == FileAction.MOVE && file.exists()) {
-                          file.delete()
-                          Log.d(TAG, "Source file deleted after move: ${file.name}")
-                      }
+                    // Gunakan when untuk menghindari if-expression tanpa else
+                    when {
+                        config.fileAction == FileAction.MOVE && file.exists() -> {
+                            val deleted = file.delete()
+                            if (deleted) {
+                                Log.d(TAG, "Source file deleted after move: ${file.name}")
+                            } else {
+                                Log.e(TAG, "Failed to delete source file after move: ${file.name}")
+                            }
+                        }
+                        else -> {
+                            // tidak perlu tindakan
+                        }
+                    }
 
                 } else {
                     Log.e(TAG, "File transfer failed: ${file.name} - $message")
-                    processedFiles.remove(file.absolutePath) // Retry later
+                    processedFiles.remove(file.absolutePath); // Retry later
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error sending file ${file.name}: ${e.message}")
-            processedFiles.remove(file.absolutePath)
+            processedFiles.remove(file.absolutePath);
         }
     }
 
@@ -207,10 +217,10 @@ class FileMonitorService : Service() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        isRunning.set(false)
-        monitorJob?.cancel()
-        scope.cancel()
-        Log.d(TAG, "FileMonitorService destroyed")
+        super.onDestroy();
+        isRunning.set(false);
+        monitorJob?.cancel();
+        scope.cancel();
+        Log.d(TAG, "FileMonitorService destroyed");
     }
 }
