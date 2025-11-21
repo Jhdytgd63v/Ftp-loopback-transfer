@@ -194,18 +194,22 @@ class SenderConfigActivity : AppCompatActivity() {
     }
     
     private fun saveSettings() {
+        val timestamp = System.currentTimeMillis()
         try {
             val settings = SenderSettings(
                 monitoredFolders = configs,
                 backgroundServiceEnabled = true,
                 adaptiveScanning = true
             )
-            
+
             val json = Gson().toJson(settings)
             File(filesDir, settingsFile).writeText(json)
-            
-            Toast.makeText(this, "Sender settings saved! ${configs.size} folders configured", Toast.LENGTH_SHORT).show()
-            
+
+            // Restart monitoring service to apply new settings immediately
+            val intent = Intent(this, com.sandbox.ftptransfer.service.FileMonitorService::class.java)
+            startService(intent)
+
+            Toast.makeText(this, "Sender settings saved (${configs.size} folders). Service restarted @ $timestamp", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error saving settings: ${e.message}", Toast.LENGTH_SHORT).show()
         }
