@@ -359,39 +359,3 @@ class FileMonitorService : Service() {
         }
     }
 
-            socket.use { sock ->
-                val outputStream = DataOutputStream(sock.getOutputStream())
-                val inputStream = DataInputStream(sock.getInputStream())
-                outputStream.writeUTF(document.name ?: "unknown_file")
-                outputStream.writeLong(document.length())
-                outputStream.writeUTF(config.fileAction.toString())
-                val docInputStream = contentResolver.openInputStream(document.uri)
-                if (docInputStream != null) {
-                    docInputStream.use { stream ->
-                        val buffer = ByteArray(8192)
-                        var read: Int
-                        while (stream.read(buffer).also { read = it } != -1) {
-                            outputStream.write(buffer, 0, read)
-                        }
-                    }
-                }
-                outputStream.flush()
-                val success = inputStream.readBoolean()
-                val message = inputStream.readUTF()
-                AppNotificationManager.notifyStatus(this, document.name.hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
-                if (success) {
-                    Log.d(TAG, "Document sent successfully: ${document.name} - $message")
-                    if (config.fileAction == FileAction.MOVE) {
-                        val deleted = document.delete()
-                        Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
-                    }
-                } else {
-                    Log.e(TAG, "Document transfer failed: ${document.name} - $message")
-                    processedFiles.remove(document.uri.toString())
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
-            processedFiles.remove(document.uri.toString())
-        }
-    }
