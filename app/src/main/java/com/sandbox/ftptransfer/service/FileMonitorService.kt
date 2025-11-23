@@ -13,6 +13,7 @@ import com.sandbox.ftptransfer.model.FileAction
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.*
+import java.net.Socket
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -309,14 +310,14 @@ class FileMonitorService : Service() {
                             outputStream.writeLong(document.length())
 
                             // Send file content
-                            context.contentResolver.openInputStream(document.uri)?.use { fileInputStream ->
+                            this@FileMonitorService.contentResolver.openInputStream(document.uri)?.use { fileInputStream ->
                                 fileInputStream.copyTo(outputStream)
                             }
 
                             // Get response
                             val success = inputStream.readBoolean()
                             val message = inputStream.readUTF()
-                            AppNotificationManager.notifyStatus(context, (document.name ?: "unknown").hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
+                            AppNotificationManager.notifyStatus(this@FileMonitorService, (document.name ?: "unknown").hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
 
                             if (success) {
                                 Log.d(TAG, "Document sent successfully: ${document.name} - $message")
@@ -341,3 +342,5 @@ class FileMonitorService : Service() {
             }
         }
     }
+
+}
