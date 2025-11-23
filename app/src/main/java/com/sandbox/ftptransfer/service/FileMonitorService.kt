@@ -6,7 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import com.sandbox.ftptransfer.utils.PortManagerr
+import com.sandbox.ftptransfer.utils.PortManager
 import com.sandbox.ftptransfer.model.SenderSettings
 import com.sandbox.ftptransfer.model.FolderMonitorConfig
 import com.sandbox.ftptransfer.model.FileAction
@@ -298,7 +298,7 @@ class FileMonitorService : Service() {
         }
     }
 
-    private suspend fun sendDocumentToReceiverr(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
+    private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
         withContext(Dispatchers.IO) {
             try {
                 Socket(config.receiverHost, config.receiverPort).use { socket ->
