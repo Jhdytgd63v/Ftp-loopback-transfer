@@ -301,7 +301,7 @@ class FileMonitorService : Service() {
     private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
         withContext(Dispatchers.IO) {
             try {
-                Socket(config.receiverHost, config.receiverPort).use { socket ->
+                Socket("127.0.0.1", config.targetPort).use { socket ->
                     DataOutputStream(socket.getOutputStream()).use { outputStream ->
                         DataInputStream(socket.getInputStream()).use { inputStream ->
                             // Send file name and size
