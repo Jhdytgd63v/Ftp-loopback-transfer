@@ -124,7 +124,7 @@ class FileMonitorService : Service() {
                                 AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), "📁 File Detected", "New file: ${document.name}")
                                 processedFiles.add(document.uri.toString())
                                 scope.launch {
-                                    sendDocumentToReceiverr(document, config)
+                                    sendDocumentToReceiver(document, config)
                                 }
                                 transferredCount++
                             }
@@ -299,64 +299,45 @@ class FileMonitorService : Service() {
     }
 
     private suspend fun sendDocumentToReceiverr(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
-        Log.d(TAG, "Attempting to send document: ${document.name} to port: ${config.targetPort}")
+        withContext(Dispatchers.IO) {
+            try {
+                Socket(config.receiverHost, config.receiverPort).use { socket ->
+                    DataOutputStream(socket.getOutputStream()).use { outputStream ->
+                        DataInputStream(socket.getInputStream()).use { inputStream ->
+                            // Send file name and size
+                            outputStream.writeUTF(document.name ?: "unknown")
+                            outputStream.writeLong(document.length())
 
-        AppNotificationManager.notifyStatus(this, document.name.hashCode(), "📤 Sending File", "Sending ${document.name} to port ${config.targetPort}")
-        
-        val socket = PortManager.connectToServer(config.targetPort)
-        
-        if (socket == null) {
-            Log.e(TAG, "Failed to connect to server on port ${config.targetPort}")
-            processedFiles.remove(document.uri.toString())
-            return
-        }
-        
-        try {
-            socket.use { sock ->
-                val outputStream = DataOutputStream(sock.getOutputStream())
-                val inputStream = DataInputStream(sock.getInputStream())
-                
-                // Send file metadata
-                outputStream.writeUTF(document.name ?: "unknown_file")
-                outputStream.writeLong(document.length())
-                outputStream.writeUTF(config.fileAction.toString())
-                
-                // Send file data from DocumentFile
-                val docInputStream = contentResolver.openInputStream(document.uri)
-                if (docInputStream != null) {
-                    docInputStream.use { stream ->
-                        val buffer = ByteArray(8192)
-                        var read: Int
-                        while (stream.read(buffer).also { read = it } != -1) {
-                            outputStream.write(buffer, 0, read)
+                            // Send file content
+                            context.contentResolver.openInputStream(document.uri)?.use { fileInputStream ->
+                                fileInputStream.copyTo(outputStream)
+                            }
+
+                            // Get response
+                            val success = inputStream.readBoolean()
+                            val message = inputStream.readUTF()
+                            AppNotificationManager.notifyStatus(context, (document.name ?: "unknown").hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
+
+                            if (success) {
+                                Log.d(TAG, "Document sent successfully: ${document.name} - $message")
+
+                                if (config.fileAction == FileAction.MOVE) {
+                                    val deleted = document.delete()
+                                    Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
+                                } else {
+                                    // No action needed - file remains in source
+                                }
+
+                            } else {
+                                Log.e(TAG, "Document transfer failed: ${document.name} - $message")
+                                processedFiles.remove(document.uri.toString()) // Retry later
+                            }
                         }
                     }
                 }
-                
-                outputStream.flush()
-                
-                // Wait for response
-                val success = inputStream.readBoolean()
-                val message = inputStream.readUTF()
-                AppNotificationManager.notifyStatus(this, document.name.hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
-
-                if (success) {
-                    Log.d(TAG, "Document sent successfully: ${document.name} - $message")
-
-                    if (config.fileAction == FileAction.MOVE) {
-                        val deleted = document.delete()
-                        Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
-                    } else {
-                        // No action needed - file remains in source
-                    }
-
-                } else {
-                    Log.e(TAG, "Document transfer failed: ${document.name} - $message")
-                    processedFiles.remove(document.uri.toString()) // Retry later
-                }
-            Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
-            processedFiles.remove(document.uri.toString())
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
+                processedFiles.remove(document.uri.toString())
+            }
         }
     }
-
-}
