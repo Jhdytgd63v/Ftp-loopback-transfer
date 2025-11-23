@@ -26,6 +26,8 @@ class FileMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val processedFiles = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val lastScanTimes = ConcurrentHashMap<String, Long>() // Folder path -> Last scan time
+    // Cache: path/uri -> Pair(size,lastModified)
+    private val fileCache = mutableMapOf<String, Pair<Long, Long>>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -109,31 +111,40 @@ class FileMonitorService : Service() {
                 val documents = documentDir.listFiles()
                 var transferredCount = 0
                 var filteredCount = 0
-                
+
+                val currentUris = mutableSetOf<String>()
                 for (document in documents) {
-                    if (document.isFile && !processedFiles.contains(document.uri.toString())) {
-                        
-                        // Create temporary file object for filtering
-                        val tempFile = File(cacheDir, document.name ?: "unknown")
-                        
-                        // AUTO DETECT FILTERING
-                        if (config.shouldTransferFile(tempFile)) {
-                            // Wait for file stability
-                            delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
-                            
-                            if (isDocumentReady(document)) {
-                                AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), "📁 File Detected", "New file: ${document.name}")
-                                processedFiles.add(document.uri.toString())
-                                scope.launch {
-                                    sendDocumentToReceiver(document, config)
+                    if (document.isFile) {
+                        val key = document.uri.toString()
+                        currentUris.add(key)
+                        val size = document.length()
+                        val lastMod = document.lastModified()
+                        val cached = fileCache[key]
+                        val isNew = cached == null
+                        val isModified = cached != null && (cached.first != size || cached.second != lastMod)
+
+                        if ((isNew || isModified) && !processedFiles.contains(key)) {
+                            val tempFile = File(cacheDir, document.name ?: "unknown")
+                            if (config.shouldTransferFile(tempFile)) {
+                                delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
+                                if (isDocumentReady(document)) {
+                                    AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", document.name ?: "unknown")
+                                    processedFiles.add(key)
+                                    fileCache[key] = size to lastMod
+                                    scope.launch { sendDocumentToReceiver(document, config) }
+                                    transferredCount++
                                 }
-                                transferredCount++
+                            } else {
+                                filteredCount++
+                                Log.d(TAG, "AutoDetect filtered: ${document.name} in ${config.folderName}")
                             }
-                        } else {
-                            filteredCount++
-                            Log.d(TAG, "AutoDetect filtered: ${document.name} in ${config.folderName}")
                         }
                     }
+                }
+                // Cleanup cache entries for deleted documents
+                fileCache.keys.filter { it.startsWith(documentDir.uri.toString()) && it !in currentUris }.forEach { stale ->
+                    fileCache.remove(stale)
+                    processedFiles.remove(stale)
                 }
                 
                 // Log statistics
@@ -152,31 +163,42 @@ class FileMonitorService : Service() {
                 lastScanTimes[config.folderPath] = System.currentTimeMillis()
                 
                 val files = directory.listFiles() ?: return
-                
+
                 var transferredCount = 0
                 var filteredCount = 0
-                
+
+                val currentPaths = mutableSetOf<String>()
                 for (file in files) {
-                    if (file.isFile && !processedFiles.contains(file.absolutePath)) {
-                        
-                        // AUTO DETECT FILTERING - CORE FEATURE
-                        if (config.shouldTransferFile(file)) {
-                            // Wait for file to be completely written
-                            delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
-                            
-                            if (isFileReady(file)) {
-                                AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), "📁 File Detected", "New file: ${file.name}")
-                                processedFiles.add(file.absolutePath)
-                                scope.launch {
-                                    sendFileToReceiver(file, config)
+                    if (file.isFile) {
+                        val key = file.absolutePath
+                        currentPaths.add(key)
+                        val size = file.length()
+                        val lastMod = file.lastModified()
+                        val cached = fileCache[key]
+                        val isNew = cached == null
+                        val isModified = cached != null && (cached.first != size || cached.second != lastMod)
+
+                        if ((isNew || isModified) && !processedFiles.contains(key)) {
+                            if (config.shouldTransferFile(file)) {
+                                delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
+                                if (isFileReady(file)) {
+                                    AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", file.name)
+                                    processedFiles.add(key)
+                                    fileCache[key] = size to lastMod
+                                    scope.launch { sendFileToReceiver(file, config) }
+                                    transferredCount++
                                 }
-                                transferredCount++
+                            } else {
+                                filteredCount++
+                                Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
                             }
-                        } else {
-                            filteredCount++
-                            Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
                         }
                     }
+                }
+                // Cleanup deleted entries
+                fileCache.keys.filter { it.startsWith(directory.absolutePath) && it !in currentPaths }.forEach { stale ->
+                    fileCache.remove(stale)
+                    processedFiles.remove(stale)
                 }
                 
                 // Log auto detect statistics
