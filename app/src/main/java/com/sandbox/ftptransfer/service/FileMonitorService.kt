@@ -6,7 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import com.sandbox.ftptransfer.utils.PortManager
+import com.sandbox.ftptransfer.utils.PortManagerr
 import com.sandbox.ftptransfer.model.SenderSettings
 import com.sandbox.ftptransfer.model.FolderMonitorConfig
 import com.sandbox.ftptransfer.model.FileAction
@@ -124,7 +124,7 @@ class FileMonitorService : Service() {
                                 AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), "📁 File Detected", "New file: ${document.name}")
                                 processedFiles.add(document.uri.toString())
                                 scope.launch {
-                                    sendDocumentToReceiver(document, config)
+                                    sendDocumentToReceiverr(document, config)
                                 }
                                 transferredCount++
                             }
@@ -298,7 +298,7 @@ class FileMonitorService : Service() {
         }
     }
 
-    private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
+    private suspend fun sendDocumentToReceiverr(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
         Log.d(TAG, "Attempting to send document: ${document.name} to port: ${config.targetPort}")
 
         AppNotificationManager.notifyStatus(this, document.name.hashCode(), "📤 Sending File", "Sending ${document.name} to port ${config.targetPort}")
@@ -339,23 +339,24 @@ class FileMonitorService : Service() {
                 val success = inputStream.readBoolean()
                 val message = inputStream.readUTF()
                 AppNotificationManager.notifyStatus(this, document.name.hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
-                
+
                 if (success) {
                     Log.d(TAG, "Document sent successfully: ${document.name} - $message")
-                    
+
                     if (config.fileAction == FileAction.MOVE) {
                         val deleted = document.delete()
                         Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
+                    } else {
+                        // No action needed - file remains in source
                     }
-                    
+
                 } else {
                     Log.e(TAG, "Document transfer failed: ${document.name} - $message")
                     processedFiles.remove(document.uri.toString()) // Retry later
                 }
-            }
-        } catch (e: Exception) {
             Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
             processedFiles.remove(document.uri.toString())
         }
     }
 
+}
