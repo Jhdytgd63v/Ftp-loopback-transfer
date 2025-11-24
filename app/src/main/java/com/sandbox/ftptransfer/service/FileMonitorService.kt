@@ -30,6 +30,7 @@ class FileMonitorService : Service() {
     private val fileCache = mutableMapOf<String, Pair<Long, Long>>()
     // Track files already shared to avoid duplicate share dialogs
     private val sharedFiles = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    private var autoShareEnabledGlobal = true
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -65,6 +66,7 @@ class FileMonitorService : Service() {
             while (isRunning.get()) {
                 try {
                     val settings = loadSenderSettings()
+                    autoShareEnabledGlobal = settings.autoShareEnabled
                     val enabledConfigs = settings.monitoredFolders.filter { it.enabled }
 
                     enabledConfigs.forEach { config ->
@@ -134,7 +136,7 @@ class FileMonitorService : Service() {
                                     processedFiles.add(key)
                                     fileCache[key] = size to lastMod
                                     scope.launch { sendDocumentToReceiver(document, config) }
-                                    if (config.autoShare && !sharedFiles.contains(key)) {
+                                    if (autoShareEnabledGlobal && isNew && !sharedFiles.contains(key)) {
                                         sharedFiles.add(key)
                                         shareDocument(document)
                                     }
@@ -192,7 +194,7 @@ class FileMonitorService : Service() {
                                     processedFiles.add(key)
                                     fileCache[key] = size to lastMod
                                     scope.launch { sendFileToReceiver(file, config) }
-                                    if (config.autoShare && !sharedFiles.contains(key)) {
+                                    if (autoShareEnabledGlobal && isNew && !sharedFiles.contains(key)) {
                                         sharedFiles.add(key)
                                         shareFile(file)
                                     }
@@ -412,7 +414,10 @@ class FileMonitorService : Service() {
 
     private fun getMimeType(uri: android.net.Uri): String? {
         return try {
-            contentResolver.getType(uri)
+            contentResolver.getType(uri) ?: run {
+                val extension = android.webkit.MimeTypeMap.getFileExtensionFromUrl(uri.toString())
+                if (extension.isNullOrBlank()) null else android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
+            }
         } catch (e: Exception) { null }
     }
 }

@@ -36,7 +36,8 @@ enum class FileAction {
 data class SenderSettings(
     val monitoredFolders: List<FolderMonitorConfig> = defaultFolders(),
     val backgroundServiceEnabled: Boolean = false,
-    val adaptiveScanning: Boolean = true
+    val adaptiveScanning: Boolean = true,
+    val autoShareEnabled: Boolean = true // Global auto-share (default true)
 ) {
     companion object {
         fun defaultFolders(): List<FolderMonitorConfig> {

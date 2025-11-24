@@ -35,6 +35,13 @@
         android:layout_height="wrap_content"
         android:text="Enable Background Service"
         android:layout_marginBottom="16dp" />
+    <Switch
+        android:id="@+id/switchAutoShare"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Enable Auto Share"
+        android:checked="true"
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/btnStartService"

@@ -19,6 +19,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStop: Button
     private lateinit var btnReceiverConfig: Button
     private lateinit var switchBackgroundService: Switch
+    private lateinit var switchAutoShare: Switch
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
     
@@ -41,6 +42,7 @@ class MainActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStopService)
         btnReceiverConfig = findViewById(R.id.btnReceiverConfig)
         switchBackgroundService = findViewById(R.id.switchBackgroundService)
+        switchAutoShare = findViewById(R.id.switchAutoShare)
         tvStatus = findViewById(R.id.tvStatus)
         tvLog = findViewById(R.id.tvLog)
     }
@@ -52,6 +54,7 @@ class MainActivity : AppCompatActivity() {
                 val json = file.readText()
                 val settings = Gson().fromJson(json, SenderSettings::class.java)
                 switchBackgroundService.isChecked = settings.backgroundServiceEnabled
+                switchAutoShare.isChecked = settings.autoShareEnabled
             }
         } catch (e: Exception) {
             // Use default setting if error
@@ -75,6 +78,21 @@ class MainActivity : AppCompatActivity() {
             file.writeText(json)
         } catch (e: Exception) {
             logMessage("Error saving background service setting")
+        }
+    }
+    
+    private fun saveAutoShareSetting(enabled: Boolean) {
+        try {
+            val file = File(filesDir, settingsFile)
+            val settings = if (file.exists()) {
+                val json = file.readText()
+                Gson().fromJson(json, SenderSettings::class.java).copy(autoShareEnabled = enabled)
+            } else {
+                SenderSettings(autoShareEnabled = enabled)
+            }
+            file.writeText(Gson().toJson(settings))
+        } catch (e: Exception) {
+            logMessage("Error saving auto share setting")
         }
     }
     
@@ -128,6 +146,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             android.view.View.VISIBLE
         }
+        switchAutoShare.visibility = if (isReceiverMode) {
+            android.view.View.GONE
+        } else {
+            android.view.View.VISIBLE
+        }
     }
     
     private fun startServices() {
@@ -145,6 +168,9 @@ class MainActivity : AppCompatActivity() {
             // Show background service status
             if (switchBackgroundService.isChecked) {
                 logMessage("Background service is enabled")
+            }
+            if (switchAutoShare.isChecked) {
+                logMessage("Auto Share is enabled")
             }
         }
         tvStatus.text = "Status: Running - ${if (isReceiverMode) "Receiver" else "Sender"} Mode"
