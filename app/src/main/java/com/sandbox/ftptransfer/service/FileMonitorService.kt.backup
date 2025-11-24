@@ -13,7 +13,6 @@ import com.sandbox.ftptransfer.model.FileAction
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.*
-import java.net.Socket
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -26,10 +25,6 @@ class FileMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val processedFiles = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val lastScanTimes = ConcurrentHashMap<String, Long>() // Folder path -> Last scan time
-    // Cache: path/uri -> Pair(size,lastModified)
-    private val fileCache = mutableMapOf<String, Pair<Long, Long>>()
-    // Track files already shared to avoid duplicate share dialogs
-    private val sharedFiles = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -113,44 +108,31 @@ class FileMonitorService : Service() {
                 val documents = documentDir.listFiles()
                 var transferredCount = 0
                 var filteredCount = 0
-
-                val currentUris = mutableSetOf<String>()
+                
                 for (document in documents) {
-                    if (document.isFile) {
-                        val key = document.uri.toString()
-                        currentUris.add(key)
-                        val size = document.length()
-                        val lastMod = document.lastModified()
-                        val cached = fileCache[key]
-                        val isNew = cached == null
-                        val isModified = cached != null && (cached.first != size || cached.second != lastMod)
-
-                        if ((isNew || isModified) && !processedFiles.contains(key)) {
-                            val tempFile = File(cacheDir, document.name ?: "unknown")
-                            if (config.shouldTransferFile(tempFile)) {
-                                delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
-                                if (isDocumentReady(document)) {
-                                    AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", document.name ?: "unknown")
-                                    processedFiles.add(key)
-                                    fileCache[key] = size to lastMod
-                                    scope.launch { sendDocumentToReceiver(document, config) }
-                                    if (config.autoShare && !sharedFiles.contains(key)) {
-                                        sharedFiles.add(key)
-                                        shareDocument(document)
-                                    }
-                                    transferredCount++
+                    if (document.isFile && !processedFiles.contains(document.uri.toString())) {
+                        
+                        // Create temporary file object for filtering
+                        val tempFile = File(cacheDir, document.name ?: "unknown")
+                        
+                        // AUTO DETECT FILTERING
+                        if (config.shouldTransferFile(tempFile)) {
+                            // Wait for file stability
+                            delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
+                            
+                            if (isDocumentReady(document)) {
+                                AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), "📁 File Detected", "New file: ${document.name}")
+                                processedFiles.add(document.uri.toString())
+                                scope.launch {
+                                    sendDocumentToReceiver(document, config)
                                 }
-                            } else {
-                                filteredCount++
-                                Log.d(TAG, "AutoDetect filtered: ${document.name} in ${config.folderName}")
+                                transferredCount++
                             }
+                        } else {
+                            filteredCount++
+                            Log.d(TAG, "AutoDetect filtered: ${document.name} in ${config.folderName}")
                         }
                     }
-                }
-                // Cleanup cache entries for deleted documents
-                fileCache.keys.filter { it.startsWith(documentDir.uri.toString()) && it !in currentUris }.forEach { stale ->
-                    fileCache.remove(stale)
-                    processedFiles.remove(stale)
                 }
                 
                 // Log statistics
@@ -169,47 +151,31 @@ class FileMonitorService : Service() {
                 lastScanTimes[config.folderPath] = System.currentTimeMillis()
                 
                 val files = directory.listFiles() ?: return
-
+                
                 var transferredCount = 0
                 var filteredCount = 0
-
-                val currentPaths = mutableSetOf<String>()
+                
                 for (file in files) {
-                    if (file.isFile) {
-                        val key = file.absolutePath
-                        currentPaths.add(key)
-                        val size = file.length()
-                        val lastMod = file.lastModified()
-                        val cached = fileCache[key]
-                        val isNew = cached == null
-                        val isModified = cached != null && (cached.first != size || cached.second != lastMod)
-
-                        if ((isNew || isModified) && !processedFiles.contains(key)) {
-                            if (config.shouldTransferFile(file)) {
-                                delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
-                                if (isFileReady(file)) {
-                                    AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", file.name)
-                                    processedFiles.add(key)
-                                    fileCache[key] = size to lastMod
-                                    scope.launch { sendFileToReceiver(file, config) }
-                                    if (config.autoShare && !sharedFiles.contains(key)) {
-                                        sharedFiles.add(key)
-                                        shareFile(file)
-                                    }
-                                    transferredCount++
+                    if (file.isFile && !processedFiles.contains(file.absolutePath)) {
+                        
+                        // AUTO DETECT FILTERING - CORE FEATURE
+                        if (config.shouldTransferFile(file)) {
+                            // Wait for file to be completely written
+                            delay(config.monitoringSettings.getDelayMillis().coerceAtMost(2000L))
+                            
+                            if (isFileReady(file)) {
+                                AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), "📁 File Detected", "New file: ${file.name}")
+                                processedFiles.add(file.absolutePath)
+                                scope.launch {
+                                    sendFileToReceiver(file, config)
                                 }
-                            } else {
-                                filteredCount++
-                                Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
+                                transferredCount++
                             }
+                        } else {
+                            filteredCount++
+                            Log.d(TAG, "AutoDetect filtered: ${file.name} in ${config.folderName}")
                         }
                     }
-                }
-                // Cleanup deleted entries
-                fileCache.keys.filter { it.startsWith(directory.absolutePath) && it !in currentPaths }.forEach { stale ->
-                    fileCache.remove(stale)
-                    processedFiles.remove(stale)
-                    sharedFiles.remove(stale)
                 }
                 
                 // Log auto detect statistics
@@ -333,86 +299,67 @@ class FileMonitorService : Service() {
     }
 
     private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
-        withContext(Dispatchers.IO) {
-            try {
-                Socket("127.0.0.1", config.targetPort).use { socket ->
-                    DataOutputStream(socket.getOutputStream()).use { outputStream ->
-                        DataInputStream(socket.getInputStream()).use { inputStream ->
-                            // Send file name and size
-                            outputStream.writeUTF(document.name ?: "unknown")
-                            outputStream.writeLong(document.length())
+        Log.d(TAG, "Attempting to send document: ${document.name} to port: ${config.targetPort}")
 
-                            // Send file content
-                            this@FileMonitorService.contentResolver.openInputStream(document.uri)?.use { fileInputStream ->
-                                fileInputStream.copyTo(outputStream)
-                            }
-
-                            // Get response
-                            val success = inputStream.readBoolean()
-                            val message = inputStream.readUTF()
-                            AppNotificationManager.notifyStatus(this@FileMonitorService, (document.name ?: "unknown").hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
-
-                            if (success) {
-                                Log.d(TAG, "Document sent successfully: ${document.name} - $message")
-
-                                if (config.fileAction == FileAction.MOVE) {
-                                    val deleted = document.delete()
-                                    Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
-                                } else {
-                                    // No action needed - file remains in source
-                                }
-
-                            } else {
-                                Log.e(TAG, "Document transfer failed: ${document.name} - $message")
-                                processedFiles.remove(document.uri.toString()) // Retry later
-                            }
+        AppNotificationManager.notifyStatus(this, document.name.hashCode(), "📤 Sending File", "Sending ${document.name} to port ${config.targetPort}")
+        
+        val socket = PortManager.connectToServer(config.targetPort)
+        
+        if (socket == null) {
+            Log.e(TAG, "Failed to connect to server on port ${config.targetPort}")
+            processedFiles.remove(document.uri.toString())
+            return
+        }
+        
+        try {
+            socket.use { sock ->
+                val outputStream = DataOutputStream(sock.getOutputStream())
+                val inputStream = DataInputStream(sock.getInputStream())
+                
+                // Send file metadata
+                outputStream.writeUTF(document.name ?: "unknown_file")
+                outputStream.writeLong(document.length())
+                outputStream.writeUTF(config.fileAction.toString())
+                
+                // Send file data from DocumentFile
+                val docInputStream = contentResolver.openInputStream(document.uri)
+                if (docInputStream != null) {
+                    docInputStream.use { stream ->
+                        val buffer = ByteArray(8192)
+                        var read: Int
+                        while (stream.read(buffer).also { read = it } != -1) {
+                            outputStream.write(buffer, 0, read)
                         }
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
-                processedFiles.remove(document.uri.toString())
+                
+                outputStream.flush()
+                
+                // Wait for response
+                val success = inputStream.readBoolean()
+                val message = inputStream.readUTF()
+                AppNotificationManager.notifyStatus(this, document.name.hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
+                
+                if (success) {
+                    Log.d(TAG, "Document sent successfully: ${document.name} - $message")
+                    
+                    if (config.fileAction == FileAction.MOVE) {
+} else {
+    // No action needed - file remains in source
+}
+                        val deleted = document.delete()
+                        Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
+                    }
+                    
+                } else {
+                    Log.e(TAG, "Document transfer failed: ${document.name} - $message")
+                    processedFiles.remove(document.uri.toString()) // Retry later
+                }
             }
-        }
-    }
-
-    private fun shareFile(file: File) {
-        try {
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                this,
-                applicationContext.packageName + ".fileprovider",
-                file
-            )
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = getMimeType(uri) ?: "*/*"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(Intent.createChooser(intent, "Share ${file.name}"))
         } catch (e: Exception) {
-            Log.e(TAG, "shareFile error: ${e.message}")
+            Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
+            processedFiles.remove(document.uri.toString())
         }
     }
 
-    private fun shareDocument(document: DocumentFile) {
-        try {
-            val uri = document.uri
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = document.type ?: getMimeType(uri) ?: "*/*"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(Intent.createChooser(intent, "Share ${document.name}"))
-        } catch (e: Exception) {
-            Log.e(TAG, "shareDocument error: ${e.message}")
-        }
-    }
-
-    private fun getMimeType(uri: android.net.Uri): String? {
-        return try {
-            contentResolver.getType(uri)
-        } catch (e: Exception) { null }
-    }
 }

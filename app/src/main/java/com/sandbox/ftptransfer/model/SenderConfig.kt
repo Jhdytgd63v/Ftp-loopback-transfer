@@ -14,7 +14,8 @@ data class FolderMonitorConfig(
     val fileAction: FileAction = FileAction.COPY,
     val enabled: Boolean = true,
     val monitoringSettings: MonitoringSettings = MonitoringSettings.default(),
-    val autoDetectSettings: AutoDetectSettings = AutoDetectSettings() // AUTO DETECT INTEGRATION
+    val autoDetectSettings: AutoDetectSettings = AutoDetectSettings(), // AUTO DETECT INTEGRATION
+    val autoShare: Boolean = false // NEW: enable automatic Android share dialog
 ) {
     fun getDisplayName(): String {
         val delayText = if (monitoringSettings.delaySeconds == 0) "real-time" else "${monitoringSettings.delaySeconds}s"
