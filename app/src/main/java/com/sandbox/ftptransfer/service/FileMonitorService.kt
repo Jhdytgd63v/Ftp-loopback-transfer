@@ -246,9 +246,7 @@ class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
 
 
 
-        }
-
-
+        // Removed stray closing brace - keep class scope open
 
     private fun loadSenderSettings(): SenderSettings {
         return try {
