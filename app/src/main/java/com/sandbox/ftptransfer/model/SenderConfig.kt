@@ -4,14 +4,12 @@ import java.io.File
 
 data class SenderConfig(
     val monitorFolder: String,
-    val targetPort: Int
+
 )
 
 data class FolderMonitorConfig(
     val folderPath: String,
     val folderName: String,
-    val targetPort: Int,
-    val fileAction: FileAction = FileAction.COPY,
     val enabled: Boolean = true,
     val monitoringSettings: MonitoringSettings = MonitoringSettings.default(),
     val autoDetectSettings: AutoDetectSettings = AutoDetectSettings(), // AUTO DETECT INTEGRATION
@@ -20,7 +18,7 @@ data class FolderMonitorConfig(
     fun getDisplayName(): String {
         val delayText = if (monitoringSettings.delaySeconds == 0) "real-time" else "${monitoringSettings.delaySeconds}s"
         val autoDetectText = if (autoDetectSettings.enabled) "Auto" else "All"
-        return "$folderName → Port $targetPort ($fileAction) - Scan: $delayText - Filter: $autoDetectText"
+        return "$folderName - Scan: $delayText - Filter: $autoDetectText"
     }
     
     fun shouldTransferFile(file: File): Boolean {
@@ -28,10 +26,7 @@ data class FolderMonitorConfig(
     }
 }
 
-enum class FileAction {
-    COPY,    // File disalin, tetap ada di sumber
-    MOVE     // File dipindah, dihapus dari sumber setelah sukses
-}
+// FileAction removed (COPY/MOVE no longer used in pure auto-share mode)
 
 data class SenderSettings(
     val monitoredFolders: List<FolderMonitorConfig> = defaultFolders(),
@@ -45,24 +40,18 @@ data class SenderSettings(
                 FolderMonitorConfig(
                     folderPath = "/Pictures/Screenshots/",
                     folderName = "Screenshots",
-                    targetPort = 5152,
-                    fileAction = FileAction.MOVE,
                     monitoringSettings = MonitoringSettings(delaySeconds = 2),
                     autoDetectSettings = AutoDetectSettings.mediaOnly()
                 ),
                 FolderMonitorConfig(
                     folderPath = "/Downloads/",
                     folderName = "Downloads",
-                    targetPort = 5153,
-                    fileAction = FileAction.COPY,
                     monitoringSettings = MonitoringSettings(delaySeconds = 5),
                     autoDetectSettings = AutoDetectSettings() // Default: images, videos, pdf, txt
                 ),
                 FolderMonitorConfig(
                     folderPath = "/DCIM/Camera/",
                     folderName = "Camera",
-                    targetPort = 5154,
-                    fileAction = FileAction.MOVE,
                     monitoringSettings = MonitoringSettings(delaySeconds = 3),
                     autoDetectSettings = AutoDetectSettings.mediaOnly()
                 )
@@ -74,7 +63,5 @@ data class SenderSettings(
         return monitoredFolders.find { it.folderPath == folderPath }
     }
 
-    fun getConfigForPort(port: Int): FolderMonitorConfig? {
-        return monitoredFolders.find { it.targetPort == port }
-    }
+    // getConfigForPort removed: ports no longer used
 }

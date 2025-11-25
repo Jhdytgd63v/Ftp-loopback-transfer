@@ -7,7 +7,7 @@ import android.widget.Button
 import android.widget.Switch
 import android.widget.TextView
 import com.sandbox.ftptransfer.service.FileMonitorService
-import com.sandbox.ftptransfer.service.LoopbackServer
+
 import com.sandbox.ftptransfer.model.SenderSettings
 import com.google.gson.Gson
 import java.io.File
@@ -23,7 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
     
-    private var isReceiverMode = true
+    private var isReceiverMode = false // Receiver mode removed; always sender (auto-share)
     private val settingsFile = "sender_settings.json"
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,9 +97,8 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupClickListeners() {
-        switchMode.setOnCheckedChangeListener { _, isChecked ->
-            isReceiverMode = !isChecked
-            updateModeDisplay()
+        switchMode.setOnCheckedChangeListener { _, _ ->
+            // Mode switching disabled in pure auto-share
         }
         
         btnStart.setOnClickListener {
@@ -111,13 +110,8 @@ class MainActivity : AppCompatActivity() {
         }
         
         btnReceiverConfig.setOnClickListener {
-            if (isReceiverMode) {
-                val intent = Intent(this, ReceiverConfigActivity::class.java)
-                startActivity(intent)
-            } else {
-                val intent = Intent(this, SenderConfigActivity::class.java)
-                startActivity(intent)
-            }
+            val intent = Intent(this, SenderConfigActivity::class.java)
+            startActivity(intent)
         }
         
         switchBackgroundService.setOnCheckedChangeListener { _, isChecked ->
@@ -133,60 +127,28 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun updateModeDisplay() {
-        val modeText = if (isReceiverMode) "Receiver" else "Sender"
-        switchMode.text = "$modeText Mode"
-        tvStatus.text = "Status: Stopped - $modeText Mode"
-        
-        // Update config button text
-        btnReceiverConfig.text = if (isReceiverMode) "Configure Receiver" else "Configure Sender"
-        
-        // Show/hide background service switch based on mode
-        switchBackgroundService.visibility = if (isReceiverMode) {
-            android.view.View.GONE
-        } else {
-            android.view.View.VISIBLE
-        }
-        switchAutoShare.visibility = if (isReceiverMode) {
-            android.view.View.GONE
-        } else {
-            android.view.View.VISIBLE
-        }
+        val modeText = "Auto-Share"
+        switchMode.text = modeText
+        tvStatus.text = "Status: Stopped - $modeText"
+        btnReceiverConfig.text = "Configure Folders"
+        switchBackgroundService.visibility = android.view.View.VISIBLE
+        switchAutoShare.visibility = android.view.View.VISIBLE
     }
     
     private fun startServices() {
-        if (isReceiverMode) {
-            // Start receiver (server)
-            val intent = Intent(this, LoopbackServer::class.java)
-            startService(intent)
-            logMessage("Receiver service started")
-        } else {
-            // Start sender (file monitor)
-            val intent = Intent(this, FileMonitorService::class.java)
-            startService(intent)
-            logMessage("Sender service started")
-            
-            // Show background service status
-            if (switchBackgroundService.isChecked) {
-                logMessage("Background service is enabled")
-            }
-            if (switchAutoShare.isChecked) {
-                logMessage("Auto Share is enabled")
-            }
-        }
-        tvStatus.text = "Status: Running - ${if (isReceiverMode) "Receiver" else "Sender"} Mode"
+        val intent = Intent(this, FileMonitorService::class.java)
+        startService(intent)
+        logMessage("Auto-Share monitoring started")
+        if (switchBackgroundService.isChecked) logMessage("Background service is enabled")
+        if (switchAutoShare.isChecked) logMessage("Auto Share is enabled")
+        tvStatus.text = "Status: Running - Auto-Share"
     }
     
     private fun stopServices() {
-        if (isReceiverMode) {
-            val intent = Intent(this, LoopbackServer::class.java)
-            stopService(intent)
-            logMessage("Receiver service stopped")
-        } else {
-            val intent = Intent(this, FileMonitorService::class.java)
-            stopService(intent)
-            logMessage("Sender service stopped")
-        }
-        tvStatus.text = "Status: Stopped - ${if (isReceiverMode) "Receiver" else "Sender"} Mode"
+        val intent = Intent(this, FileMonitorService::class.java)
+        stopService(intent)
+        logMessage("Auto-Share monitoring stopped")
+        tvStatus.text = "Status: Stopped - Auto-Share"
     }
     
     private fun logMessage(message: String) {

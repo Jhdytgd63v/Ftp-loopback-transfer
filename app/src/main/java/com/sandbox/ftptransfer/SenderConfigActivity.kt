@@ -13,7 +13,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.sandbox.ftptransfer.model.FolderMonitorConfig
-import com.sandbox.ftptransfer.model.FileAction
+
 import com.sandbox.ftptransfer.model.MonitoringSettings
 import com.sandbox.ftptransfer.model.SenderSettings
 import com.sandbox.ftptransfer.model.AutoDetectSettings
@@ -62,9 +62,7 @@ class SenderConfigActivity : AppCompatActivity() {
             openFolderPicker()
         }
         
-        adapter.onPortChangeListener = { index, newPort ->
-            configs[index] = configs[index].copy(targetPort = newPort)
-        }
+        // Port change listener removed (no ports in pure auto-share)
         
         adapter.onDelayChangeListener = { index, newDelay ->
             val currentSettings = configs[index].monitoringSettings
@@ -73,9 +71,7 @@ class SenderConfigActivity : AppCompatActivity() {
             )
         }
         
-        adapter.onActionChangeListener = { index, newAction ->
-            configs[index] = configs[index].copy(fileAction = newAction)
-        }
+        // File action listener removed (COPY/MOVE deprecated)
         
         adapter.onAutoDetectClickListener = { index ->
             selectedConfigIndex = index
@@ -122,12 +118,9 @@ class SenderConfigActivity : AppCompatActivity() {
     
     private fun setupClickListeners() {
         btnAddMapping.setOnClickListener {
-            val newPort = (configs.maxByOrNull { it.targetPort }?.targetPort ?: 5151) + 1
             val newConfig = FolderMonitorConfig(
                 folderPath = "/NewFolder/",
                 folderName = "NewFolder",
-                targetPort = newPort,
-                fileAction = FileAction.COPY,
                 monitoringSettings = MonitoringSettings(delaySeconds = 2),
                 autoDetectSettings = AutoDetectSettings()
             )
@@ -247,7 +240,7 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         val config = configs[position]
         
         holder.tvFolderName.text = config.folderName
-        holder.etPort.setText(config.targetPort.toString())
+        holder.etPort.visibility = View.GONE
         holder.etDelay.setText(config.monitoringSettings.delaySeconds.toString())
         holder.switchEnabled.isChecked = config.enabled
         
@@ -255,12 +248,8 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
         holder.btnAutoDetect.text = if (config.autoDetectSettings.enabled) 
             "Auto Detect: ON" else "Auto Detect: OFF"
         
-        // Setup file action spinner
-        val actions = FileAction.values().map { it.name }
-        val adapter = ArrayAdapter(holder.itemView.context, android.R.layout.simple_spinner_item, actions)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        holder.spinnerAction.adapter = adapter
-        holder.spinnerAction.setSelection(config.fileAction.ordinal)
+        // Remove file action spinner (COPY/MOVE deprecated)
+        holder.spinnerAction.visibility = View.GONE
         
         holder.btnSelectFolder.setOnClickListener {
             onFolderSelectListener?.invoke(position)
@@ -270,12 +259,7 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
             onAutoDetectClickListener?.invoke(position)
         }
         
-        holder.etPort.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                val newPort = holder.etPort.text.toString().toIntOrNull() ?: config.targetPort
-                onPortChangeListener?.invoke(position, newPort)
-            }
-        }
+        // Port editing removed
         
         holder.etDelay.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
@@ -284,16 +268,10 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
             }
         }
         
-        holder.spinnerAction.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                val selectedAction = FileAction.values()[pos]
-                onActionChangeListener?.invoke(position, selectedAction)
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
+        // File action selection removed
         
         holder.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
-            onActionChangeListener?.invoke(position, if (isChecked) config.fileAction else FileAction.COPY)
+            // Enabled state kept; no action mapping
         }
         
         holder.btnDelete.setOnClickListener {

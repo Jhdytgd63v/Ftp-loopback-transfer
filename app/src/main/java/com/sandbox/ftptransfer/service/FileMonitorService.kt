@@ -6,19 +6,17 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import com.sandbox.ftptransfer.utils.PortManager
 import com.sandbox.ftptransfer.model.SenderSettings
 import com.sandbox.ftptransfer.model.FolderMonitorConfig
-import com.sandbox.ftptransfer.model.FileAction
 import com.google.gson.Gson
 import kotlinx.coroutines.*
 import java.io.*
-import java.net.Socket
+
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-class FileMonitorService : Service() {
+class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
 
     private val TAG = "FileMonitorService"
     private val isRunning = AtomicBoolean(false)
@@ -135,7 +133,6 @@ class FileMonitorService : Service() {
                                     AppNotificationManager.notifyStatus(this@FileMonitorService, document.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", document.name ?: "unknown")
                                     processedFiles.add(key)
                                     fileCache[key] = size to lastMod
-                                    scope.launch { sendDocumentToReceiver(document, config) }
                                     if (autoShareEnabledGlobal && isNew && !sharedFiles.contains(key)) {
                                         sharedFiles.add(key)
                                         shareDocument(document)
@@ -193,7 +190,6 @@ class FileMonitorService : Service() {
                                     AppNotificationManager.notifyStatus(this@FileMonitorService, file.name.hashCode(), if (isNew) "📁 New File" else "♻️ File Modified", file.name)
                                     processedFiles.add(key)
                                     fileCache[key] = size to lastMod
-                                    scope.launch { sendFileToReceiver(file, config) }
                                     if (autoShareEnabledGlobal && isNew && !sharedFiles.contains(key)) {
                                         sharedFiles.add(key)
                                         shareFile(file)
@@ -240,15 +236,15 @@ class FileMonitorService : Service() {
         }
     }
 
-    private suspend fun sendFileToReceiver(file: File, config: FolderMonitorConfig) {
-        Log.d(TAG, "Attempting to send file: ${file.name} to port: ${config.targetPort}")
 
-        AppNotificationManager.notifyStatus(this, file.name.hashCode(), "📤 Sending File", "Sending ${file.name} to port ${config.targetPort}")
+
+
+
         // FIX: Gunakan connectToServer bukan connectToPort
-        val socket = PortManager.connectToServer(config.targetPort)
+
 
         if (socket == null) {
-            Log.e(TAG, "Failed to connect to server on port ${config.targetPort}")
+
             processedFiles.remove(file.absolutePath)
             return
         }
@@ -334,10 +330,10 @@ class FileMonitorService : Service() {
         }
     }
 
-    private suspend fun sendDocumentToReceiver(document: androidx.documentfile.provider.DocumentFile, config: FolderMonitorConfig) {
+
         withContext(Dispatchers.IO) {
             try {
-                Socket("127.0.0.1", config.targetPort).use { socket ->
+
                     DataOutputStream(socket.getOutputStream()).use { outputStream ->
                         DataInputStream(socket.getInputStream()).use { inputStream ->
                             // Send file name and size
