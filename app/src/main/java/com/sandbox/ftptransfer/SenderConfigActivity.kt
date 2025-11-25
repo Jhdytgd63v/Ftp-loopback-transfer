@@ -215,7 +215,7 @@ class SenderConfigAdapter : RecyclerView.Adapter<SenderConfigAdapter.ViewHolder>
     var onFolderSelectListener: ((Int) -> Unit)? = null
     var onPortChangeListener: ((Int, Int) -> Unit)? = null
     var onDelayChangeListener: ((Int, Int) -> Unit)? = null
-    var onActionChangeListener: ((Int, FileAction) -> Unit)? = null
+
     var onAutoDetectClickListener: ((Int) -> Unit)? = null
     var onConfigDeleteListener: ((Int) -> Unit)? = null
     

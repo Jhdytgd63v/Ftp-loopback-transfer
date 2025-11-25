@@ -240,63 +240,15 @@ class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
 
 
 
-        // FIX: Gunakan connectToServer bukan connectToPort
 
 
-        if (socket == null) {
 
-            processedFiles.remove(file.absolutePath)
-            return
+
+
+
         }
 
-        try {
-            socket.use { sock ->
-                val outputStream = DataOutputStream(sock.getOutputStream())
-                val inputStream = DataInputStream(sock.getInputStream())
 
-                // Send file metadata
-                outputStream.writeUTF(file.name)
-                outputStream.writeLong(file.length())
-                outputStream.writeUTF(config.fileAction.toString())
-
-                // Send file data
-                val fileInputStream = FileInputStream(file)
-                val buffer = ByteArray(8192)
-                var read: Int
-
-                fileInputStream.use { fis ->
-                    while (fis.read(buffer).also { read = it } != -1) {
-                        outputStream.write(buffer, 0, read)
-                    }
-                }
-
-                outputStream.flush()
-
-                // Wait for response
-                val success = inputStream.readBoolean()
-                val message = inputStream.readUTF()
-                        AppNotificationManager.notifyStatus(this, file.name.hashCode(), "✅ Transfer Complete", "File sent: ${file.name}")
-
-                if (success) {
-                    Log.d(TAG, "File sent successfully: ${file.name} - $message")
-
-                        if (config.fileAction == FileAction.MOVE && file.exists()) {
-                            file.delete()
-                            Log.d(TAG, "Source file deleted after move: ${file.name}")
-                        } else {
-                            // No action needed
-                        }
-
-                } else {
-                    Log.e(TAG, "File transfer failed: ${file.name} - $message")
-                    processedFiles.remove(file.absolutePath) // Retry later
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending file ${file.name}: ${e.message}")
-            processedFiles.remove(file.absolutePath)
-        }
-    }
 
     private fun loadSenderSettings(): SenderSettings {
         return try {
@@ -331,48 +283,7 @@ class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
     }
 
 
-        withContext(Dispatchers.IO) {
-            try {
 
-                    DataOutputStream(socket.getOutputStream()).use { outputStream ->
-                        DataInputStream(socket.getInputStream()).use { inputStream ->
-                            // Send file name and size
-                            outputStream.writeUTF(document.name ?: "unknown")
-                            outputStream.writeLong(document.length())
-
-                            // Send file content
-                            this@FileMonitorService.contentResolver.openInputStream(document.uri)?.use { fileInputStream ->
-                                fileInputStream.copyTo(outputStream)
-                            }
-
-                            // Get response
-                            val success = inputStream.readBoolean()
-                            val message = inputStream.readUTF()
-                            AppNotificationManager.notifyStatus(this@FileMonitorService, (document.name ?: "unknown").hashCode(), "✅ Transfer Complete", "File sent: ${document.name}")
-
-                            if (success) {
-                                Log.d(TAG, "Document sent successfully: ${document.name} - $message")
-
-                                if (config.fileAction == FileAction.MOVE) {
-                                    val deleted = document.delete()
-                                    Log.d(TAG, "Source document deleted after move: ${document.name}, deleted=$deleted")
-                                } else {
-                                    // No action needed - file remains in source
-                                }
-
-                            } else {
-                                Log.e(TAG, "Document transfer failed: ${document.name} - $message")
-                                processedFiles.remove(document.uri.toString()) // Retry later
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending document ${document.name}: ${e.message}")
-                processedFiles.remove(document.uri.toString())
-            }
-        }
-    }
 
     private fun shareFile(file: File) {
         try {
@@ -387,7 +298,7 @@ class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            startActivity(Intent.createChooser(intent, "Share ${file.name}"))
+            this@FileMonitorService.startActivity(Intent.createChooser(intent, "Share ${file.name}"))
         } catch (e: Exception) {
             Log.e(TAG, "shareFile error: ${e.message}")
         }
@@ -402,7 +313,7 @@ class FileMonitorService : Service() { // PURE AUTO-SHARE MODE
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            startActivity(Intent.createChooser(intent, "Share ${document.name}"))
+            this@FileMonitorService.startActivity(Intent.createChooser(intent, "Share ${document.name}"))
         } catch (e: Exception) {
             Log.e(TAG, "shareDocument error: ${e.message}")
         }
